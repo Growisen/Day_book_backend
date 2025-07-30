@@ -2,16 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-let userRoutes, authRoutes, testRoutes, errorHandler;
-try {
-  userRoutes = require('./routes/user.routes').default;
-  authRoutes = require('./routes/auth.routes').default;
-  testRoutes = require('./routes/test.routes').default;
-  errorHandler = require('./middlewares/errorHandler').default;
-} catch (error) {
-  console.error('Error importing modules:', error);
-  process.exit(1);
-}
+import userRoutes from './routes/user.routes';
+import authRoutes from './routes/auth.routes';
+import testRoutes from './routes/test.routes';
+import errorHandler from './middlewares/errorHandler';
 
 const app = express();
 
