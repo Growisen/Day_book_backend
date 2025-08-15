@@ -9,6 +9,8 @@ router.get('/blah', (req: Request, res: Response) => {
   res.json({ message: 'This is a test route' });
 });
 
+
+
 router.get('/me', authenticateToken, (req: Request, res: Response) => {
   // req.user is set by authenticateToken middleware
   res.json({
