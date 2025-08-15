@@ -6,7 +6,7 @@ import { DayBook } from '../models/pay_creation';
 
 const router = Router();
 
-router.post('/create', authenticateToken, async (req: Request, res: Response) => {
+router.post('/create', async (req: Request, res: Response) => {
   try {
     const dayBookEntry: Omit<DayBook, 'id' | 'created_at'> = req.body;
     const result = await dayBookService.create(dayBookEntry);
