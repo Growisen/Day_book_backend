@@ -66,6 +66,24 @@ export class DayBookService {
     }
     return true;
   }
+
+  // ...existing code...
+
+async getAllByType(paymentType: string) {
+  const { data, error } = await supabase
+    .from(this.TABLE_NAME)
+    .select('*')
+    .eq('payment_type', paymentType)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch day book entries: ${error.message}`);
+  }
+  return data;
 }
+
+// ...existing code...
+}
+
 
 export const dayBookService = new DayBookService();

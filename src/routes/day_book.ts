@@ -75,4 +75,48 @@ router.get('/me', authenticateToken, (req: Request, res: Response) => {
   });
 });
 
+router.get('/list', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const paymentType = req.query.type as string; // 'incoming' or 'outgoing'
+    let result;
+
+    if (paymentType && ['incoming', 'outgoing'].includes(paymentType)) {
+      result = await dayBookService.getAllByType(paymentType);
+    } else {
+      result = await dayBookService.getAll();
+    }
+    
+    res.status(200).json({
+      message: 'Day book entries retrieved successfully',
+      data: result
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: error.message || 'Failed to fetch day book entries'
+    });
+  }
+});
+
+router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = await dayBookService.getById(id);
+    
+    if (!result) {
+      return res.status(404).json({
+        error: 'Day book entry not found'
+      });
+    }
+
+    res.status(200).json({
+      message: 'Day book entry retrieved successfully',
+      data: result
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: error.message || 'Failed to fetch day book entry'
+    });
+  }
+});
+
 export default router;
