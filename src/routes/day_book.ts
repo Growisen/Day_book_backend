@@ -119,4 +119,55 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
+// Get entries between two dates
+router.get('/date-range', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { start_date, end_date } = req.query;
+    
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        error: 'Both start_date and end_date are required'
+      });
+    }
+
+    const result = await dayBookService.getByDateRange(
+      start_date as string,
+      end_date as string
+    );
+
+    res.status(200).json({
+      message: 'Day book entries retrieved successfully',
+      data: result
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: error.message || 'Failed to fetch day book entries'
+    });
+  }
+});
+
+// Get entries from a specific date till now
+router.get('/from-date', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { start_date } = req.query;
+    
+    if (!start_date) {
+      return res.status(400).json({
+        error: 'start_date is required'
+      });
+    }
+
+    const result = await dayBookService.getFromDate(start_date as string);
+
+    res.status(200).json({
+      message: 'Day book entries retrieved successfully',
+      data: result
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: error.message || 'Failed to fetch day book entries'
+    });
+  }
+});
+
 export default router;
