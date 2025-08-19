@@ -82,6 +82,38 @@ async getAllByType(paymentType: string) {
   return data;
 }
 
+
+// ...existing code...
+
+async getByDateRange(startDate: string, endDate: string) {
+  const { data, error } = await supabase
+    .from(this.TABLE_NAME)
+    .select('*')
+    .gte('created_at', startDate)
+    .lte('created_at', endDate)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch day book entries: ${error.message}`);
+  }
+  return data;
+}
+
+async getFromDate(startDate: string) {
+  const { data, error } = await supabase
+    .from(this.TABLE_NAME)
+    .select('*')
+    .gte('created_at', startDate)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch day book entries: ${error.message}`);
+  }
+  return data;
+}
+
+// ...existing code...
+
 // ...existing code...
 }
 
