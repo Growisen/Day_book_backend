@@ -14,13 +14,21 @@ export enum ModeOfPay {
   ACCOUNT_TRANSFER = 'account_transfer'
 }
 
+export enum UserRole {
+  ADMIN = 'admin',
+  ACCOUNTANT = 'accountant',
+  STAFF = 'staff'
+}
+
 export interface DayBook {
   id?: bigint;
   created_at?: Date;
-  id_in_out: string;
   amount: number;
   payment_type: PayType;
   pay_status: PayStatus;
   description?: string;
   mode_of_pay?: ModeOfPay;
+  receipt?: string; // Added receipt field for storing file URL
+  nurse_id?: string; // Optional field for outgoing payments only
+  client_id?: string; // Optional field for incoming payments only
 }

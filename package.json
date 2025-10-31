@@ -13,20 +13,25 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@supabase/storage-js": "^2.78.0",
     "@supabase/supabase-js": "^2.50.5",
+    "@types/xlsx": "^0.0.36",
     "bcryptjs": "^3.0.2",
     "compression": "^1.8.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.0.0",
     "@types/node": "^24.0.13",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
