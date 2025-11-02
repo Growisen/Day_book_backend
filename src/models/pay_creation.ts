@@ -20,6 +20,12 @@ export enum UserRole {
   STAFF = 'staff'
 }
 
+export enum Tenant {
+  TATA_NURSING = 'TATANursing',
+  DEAR_CARE = 'Dearcare',
+  DEAR_CARE_ACADEMY = 'DearcareAcademy'
+}
+
 export interface DayBook {
   id?: bigint;
   created_at?: Date;
@@ -31,4 +37,5 @@ export interface DayBook {
   receipt?: string; // Added receipt field for storing file URL
   nurse_id?: string; // Optional field for outgoing payments only
   client_id?: string; // Optional field for incoming payments only
+  tenant: Tenant; // Required tenant field
 }

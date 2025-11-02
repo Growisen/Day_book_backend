@@ -30,6 +30,8 @@ export const authenticateToken = async (
     req.user = {
       id: userData.user.id,
       email: userData.user.email!,
+      role: userData.user.user_metadata?.role,
+      tenant: userData.user.user_metadata?.tenant,
       created_at: userData.user.created_at,
       updated_at: userData.user.updated_at ?? userData.user.created_at
     };

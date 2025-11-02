@@ -2,89 +2,134 @@ import { Router, Request, Response } from 'express';
 import { getUsers } from '../controllers/user.controller';
 import { authenticateToken } from '../middlewares/auth';
 import { dayBookService, fileService } from '../services/day_book_ops';
-import { DayBook } from '../models/pay_creation';
+import { DayBook, Tenant } from '../models/pay_creation';
 import { upload } from '../middlewares/fileupload';
 import * as XLSX from 'xlsx';
 
 const router = Router();
 
-router.post('/create', authenticateToken, upload.single('receipt'), async (req: Request, res: Response) => {
+router.post('/create', upload.single('receipt'), async (req: Request, res: Response) => {
   try {
-    const dayBookEntry: Omit<DayBook, 'id' | 'created_at'> = req.body;
-    
-    // Validation for nurse_id - only check if it's provided and not empty
-    if (dayBookEntry.nurse_id !== undefined && dayBookEntry.nurse_id !== null && dayBookEntry.nurse_id.trim() === '') {
-      return res.status(400).json({
-        error: 'nurse_id cannot be empty string when provided'
-      });
+    // Coerce and validate fields explicitly to avoid passing invalid types to DB
+    const raw = req.body || {};
+    console.log(raw)
+
+    // amount is required and must be a finite number
+    const amount = raw.amount !== undefined ? Number(raw.amount) : NaN;
+    if (Number.isNaN(amount) || !Number.isFinite(amount)) {
+      return res.status(400).json({ error: 'amount is required and must be a valid number' });
     }
-    
-    // Validation for client_id - only check if it's provided and not empty
-    if (dayBookEntry.client_id !== undefined && dayBookEntry.client_id !== null && dayBookEntry.client_id.trim() === '') {
-      return res.status(400).json({
-        error: 'client_id cannot be empty string when provided'
-      });
+
+    const payment_type = raw.payment_type as any;
+    const pay_status = raw.pay_status as any;
+    const mode_of_pay = raw.mode_of_pay as any;
+    const description = raw.description as string | undefined;
+    const tenant = raw.tenant as Tenant | undefined;
+    const nurse_id = typeof raw.nurse_id === 'string' ? raw.nurse_id : undefined;
+    const client_id = typeof raw.client_id === 'string' ? raw.client_id : undefined;
+
+    // Validation for tenant - required field
+    if (!tenant) {
+      return res.status(400).json({ error: 'tenant is required' });
     }
-    
-    // Remove nurse_id for incoming payments and client_id for outgoing payments
-    if (dayBookEntry.payment_type === 'incoming') {
-      delete dayBookEntry.nurse_id;
-    } else if (dayBookEntry.payment_type === 'outgoing') {
-      delete dayBookEntry.client_id;
+
+    // Validate tenant enum
+    if (!Object.values(Tenant).includes(tenant)) {
+      return res.status(400).json({ error: `Invalid tenant. Must be one of: ${Object.values(Tenant).join(', ')}` });
     }
-    
+
+    // If provided, ensure nurse_id/client_id are non-empty strings
+    if (nurse_id !== undefined && nurse_id.trim() === '') {
+      return res.status(400).json({ error: 'nurse_id cannot be empty string when provided' });
+    }
+    if (client_id !== undefined && client_id.trim() === '') {
+      return res.status(400).json({ error: 'client_id cannot be empty string when provided' });
+    }
+
+    // Build the payload we'll insert - only include relevant id fields
+    const payload: any = {
+      amount,
+      payment_type,
+      pay_status,
+      mode_of_pay,
+      description,
+      tenant
+    };
+
+    if (payment_type === 'incoming' && client_id) {
+      payload.client_id = client_id;
+    }
+    if (payment_type === 'outgoing' && nurse_id) {
+      payload.nurse_id = nurse_id;
+    }
+
     // Handle file upload if present
     if (req.file) {
       const fileName = `receipts/${Date.now()}-${req.file.originalname}`;
       const fileUrl = await fileService.uploadFile(req.file, fileName);
-      dayBookEntry.receipt = fileUrl;
+      payload.receipt = fileUrl;
     }
-    
-    const result = await dayBookService.create(dayBookEntry);
-    res.status(201).json({
-      message: 'Day book entry created successfully',
-      data: result
-    });
+
+    const result = await dayBookService.create(payload);
+    res.status(201).json({ message: 'Day book entry created successfully', data: result });
   } catch (error: any) {
-    res.status(500).json({
-      error: error.message || 'Failed to create day book entry'
-    });
+    res.status(500).json({ error: error.message || 'Failed to create day book entry' });
   }
 });
 
-router.put('/update/:id', authenticateToken, upload.single('receipt'), async (req: Request, res: Response) => {
+router.put('/update/:id', upload.single('receipt'), async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
-    const updateData: Partial<DayBook> = req.body;
-    
+    const raw = req.body || {};
+
+    const updateData: Partial<DayBook> = {};
+
+    // If amount provided, coerce and validate
+    if (raw.amount !== undefined) {
+      const amt = Number(raw.amount);
+      if (Number.isNaN(amt) || !Number.isFinite(amt)) {
+        return res.status(400).json({ error: 'amount must be a valid number when provided' });
+      }
+      updateData.amount = amt;
+    }
+
+    if (raw.payment_type !== undefined) updateData.payment_type = raw.payment_type;
+    if (raw.pay_status !== undefined) updateData.pay_status = raw.pay_status;
+    if (raw.mode_of_pay !== undefined) updateData.mode_of_pay = raw.mode_of_pay;
+    if (raw.description !== undefined) updateData.description = raw.description;
+    if (raw.tenant !== undefined) updateData.tenant = raw.tenant;
+    if (typeof raw.nurse_id === 'string') updateData.nurse_id = raw.nurse_id;
+    if (typeof raw.client_id === 'string') updateData.client_id = raw.client_id;
+
+    // Validation for tenant if provided
+    if (updateData.tenant && !Object.values(Tenant).includes(updateData.tenant)) {
+      return res.status(400).json({ error: `Invalid tenant. Must be one of: ${Object.values(Tenant).join(', ')}` });
+    }
+
     // Validation for nurse_id - only check if it's provided and not empty
-    if (updateData.nurse_id !== undefined && updateData.nurse_id !== null && updateData.nurse_id.trim() === '') {
-      return res.status(400).json({
-        error: 'nurse_id cannot be empty string when provided'
-      });
+    if (updateData.nurse_id !== undefined && updateData.nurse_id !== null && typeof updateData.nurse_id === 'string' && updateData.nurse_id.trim() === '') {
+      return res.status(400).json({ error: 'nurse_id cannot be empty string when provided' });
     }
-    
+
     // Validation for client_id - only check if it's provided and not empty
-    if (updateData.client_id !== undefined && updateData.client_id !== null && updateData.client_id.trim() === '') {
-      return res.status(400).json({
-        error: 'client_id cannot be empty string when provided'
-      });
+    if (updateData.client_id !== undefined && updateData.client_id !== null && typeof updateData.client_id === 'string' && updateData.client_id.trim() === '') {
+      return res.status(400).json({ error: 'client_id cannot be empty string when provided' });
     }
-    
+
     // Remove nurse_id for incoming payments and client_id for outgoing payments
     if (updateData.payment_type === 'incoming') {
       delete updateData.nurse_id;
     } else if (updateData.payment_type === 'outgoing') {
       delete updateData.client_id;
     }
-    
+
     // Handle file upload if present
     if (req.file) {
       const fileName = `receipts/${Date.now()}-${req.file.originalname}`;
       const fileUrl = await fileService.uploadFile(req.file, fileName);
       updateData.receipt = fileUrl;
     }
-    
+
     const result = await dayBookService.update(id, updateData);
     
     if (!result) {
@@ -140,17 +185,19 @@ router.get('/list', authenticateToken, async (req: Request, res: Response) => {
     const nurseId = req.query.nurse_id as string; // Filter by nurse_id
     const clientId = req.query.client_id as string; // Filter by client_id
     let result;
+    // tenant-based filtering: admins see all tenants, others only their tenant
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
 
     if (nurseId) {
       // Filter by nurse_id (only for outgoing payments)
-      result = await dayBookService.getByNurseId(nurseId);
+      result = await dayBookService.getByNurseId(nurseId, tenantFilter);
     } else if (clientId) {
       // Filter by client_id (only for incoming payments)
-      result = await dayBookService.getByClientId(clientId);
+      result = await dayBookService.getByClientId(clientId, tenantFilter);
     } else if (paymentType && ['incoming', 'outgoing'].includes(paymentType)) {
-      result = await dayBookService.getAllByType(paymentType);
+      result = await dayBookService.getAllByType(paymentType, tenantFilter);
     } else {
-      result = await dayBookService.getAll();
+      result = await dayBookService.getAll(tenantFilter);
     }
     
     res.status(200).json({
@@ -170,23 +217,24 @@ router.get('/download/excel', authenticateToken, async (req: Request, res: Respo
     const { start_date, end_date, type } = req.query;
     let result: any[];
     let filename: string;
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
 
     // Determine which data to fetch based on query parameters
     if (start_date && end_date) {
       // Get data between two dates
-      result = await dayBookService.getByDateRange(start_date as string, end_date as string);
+      result = await dayBookService.getByDateRange(start_date as string, end_date as string, tenantFilter);
       filename = `daybook_${start_date}_to_${end_date}.xlsx`;
     } else if (start_date) {
       // Get data from start date to now
-      result = await dayBookService.getFromDate(start_date as string);
+      result = await dayBookService.getFromDate(start_date as string, tenantFilter);
       filename = `daybook_from_${start_date}.xlsx`;
     } else if (type && ['incoming', 'outgoing'].includes(type as string)) {
       // Get data by payment type
-      result = await dayBookService.getAllByType(type as string);
+      result = await dayBookService.getAllByType(type as string, tenantFilter);
       filename = `daybook_${type}_payments.xlsx`;
     } else {
       // Get all data
-      result = await dayBookService.getAll();
+      result = await dayBookService.getAll(tenantFilter);
       console.log(result)
       filename = 'daybook_all_records.xlsx';
     }
@@ -275,9 +323,12 @@ router.get('/date-range', authenticateToken, async (req: Request, res: Response)
       });
     }
 
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
     const result = await dayBookService.getByDateRange(
       start_date as string,
-      end_date as string
+      end_date as string,
+      tenantFilter
     );
 
     res.status(200).json({
@@ -302,7 +353,9 @@ router.get('/from-date', authenticateToken, async (req: Request, res: Response) 
       });
     }
 
-    const result = await dayBookService.getFromDate(start_date as string);
+  const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
+  const result = await dayBookService.getFromDate(start_date as string, tenantFilter);
 
     res.status(200).json({
       message: 'Day book entries retrieved successfully',
@@ -326,7 +379,9 @@ router.get('/nurse/:nurse_id', authenticateToken, async (req: Request, res: Resp
       });
     }
 
-    const result = await dayBookService.getByNurseId(nurseId);
+  const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
+  const result = await dayBookService.getByNurseId(nurseId, tenantFilter);
 
     res.status(200).json({
       message: `Day book entries for nurse ${nurseId} retrieved successfully`,
@@ -352,7 +407,9 @@ router.get('/client/:client_id', authenticateToken, async (req: Request, res: Re
       });
     }
 
-    const result = await dayBookService.getByClientId(clientId);
+  const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
+  const result = await dayBookService.getByClientId(clientId, tenantFilter);
 
     res.status(200).json({
       message: `Day book entries for client ${clientId} retrieved successfully`,
@@ -371,7 +428,8 @@ router.get('/client/:client_id', authenticateToken, async (req: Request, res: Re
 router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
-    const result = await dayBookService.getById(id);
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+    const result = await dayBookService.getById(id, tenantFilter);
     
     if (!result) {
       return res.status(404).json({
@@ -396,19 +454,21 @@ router.get('/summary/amounts', authenticateToken, async (req: Request, res: Resp
     const { start_date, end_date } = req.query;
     
     let summary;
-    
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
     if (start_date && end_date) {
       // Get summary with date range
       summary = await dayBookService.getPaymentSummaryByDateRange(
         start_date as string, 
-        end_date as string
+        end_date as string,
+        tenantFilter
       );
     } else if (start_date) {
       // Get summary from start date to now
-      summary = await dayBookService.getPaymentSummaryFromDate(start_date as string);
+      summary = await dayBookService.getPaymentSummaryFromDate(start_date as string, tenantFilter);
     } else {
       // Get overall summary
-      summary = await dayBookService.getPaymentSummary();
+      summary = await dayBookService.getPaymentSummary(tenantFilter);
     }
     
     res.status(200).json({
@@ -438,19 +498,21 @@ router.get('/revenue/net', authenticateToken, async (req: Request, res: Response
     const { start_date, end_date } = req.query;
     
     let revenueData;
-    
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
     if (start_date && end_date) {
       // Get revenue with date range
       revenueData = await dayBookService.getNetRevenueByDateRange(
         start_date as string, 
-        end_date as string
+        end_date as string,
+        tenantFilter
       );
     } else if (start_date) {
       // Get revenue from start date to now
-      revenueData = await dayBookService.getNetRevenueFromDate(start_date as string);
+      revenueData = await dayBookService.getNetRevenueFromDate(start_date as string, tenantFilter);
     } else {
       // Get overall revenue
-      revenueData = await dayBookService.getNetRevenue();
+      revenueData = await dayBookService.getNetRevenue(tenantFilter);
     }
     
     const netRevenue = revenueData.total_incoming - revenueData.total_outgoing;
