@@ -3,7 +3,7 @@ import { Router, Request, Response } from 'express';
 import { generateToken } from '../middlewares/jwt';
 import { LoginCredentials, RegisterCredentials } from '../types';
 import { requireAdmin } from '../middlewares/roleAuth';
-import { UserRole } from '../models/pay_creation';
+import { UserRole, Tenant } from '../models/pay_creation';
 import { authenticateToken } from '../middlewares/auth';
 
 const router = Router();
@@ -15,11 +15,11 @@ router.get('/', (req: Request, res: Response) => {
 router.post('/register', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     console.log('Register request body:', req.body);
-    const { email, password, confirmPassword, role }: RegisterCredentials & { role: UserRole } = req.body;
+    const { email, password, confirmPassword, role, tenant }: RegisterCredentials = req.body;
 
     // Validation
-    if (!email || !password || !confirmPassword || !role) {
-      res.status(400).json({ error: 'All fields are required (email, password, confirmPassword, role)' });
+    if (!email || !password || !confirmPassword || !role || !tenant) {
+      res.status(400).json({ error: 'All fields are required (email, password, confirmPassword, role, tenant)' });
       return;
     }
 
@@ -41,13 +41,22 @@ router.post('/register', requireAdmin, async (req: Request, res: Response): Prom
       return;
     }
 
+    // Validate tenant
+    if (!Object.values(Tenant).includes(tenant)) {
+      res.status(400).json({ 
+        error: `Invalid tenant. Must be one of: ${Object.values(Tenant).join(', ')}` 
+      });
+      return;
+    }
+
     // Create user in Supabase Auth
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          role: role
+          role: role,
+          tenant: tenant
         }
       }
     });
@@ -65,7 +74,9 @@ router.post('/register', requireAdmin, async (req: Request, res: Response): Prom
     // Generate JWT token
     const token = generateToken({
       userId: data.user.id,
-      email: data.user.email!
+      email: data.user.email!,
+      role: role,
+      tenant: tenant
     });
 
     res.status(201).json({
@@ -75,6 +86,7 @@ router.post('/register', requireAdmin, async (req: Request, res: Response): Prom
         id: data.user.id,
         email: data.user.email,
         role: role,
+        tenant: tenant,
         created_at: data.user.created_at
       }
     });
@@ -114,7 +126,9 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     // Generate JWT token
     const token = generateToken({
       userId: data.user.id,
-      email: data.user.email!
+      email: data.user.email!,
+      role: data.user.user_metadata?.role,
+      tenant: data.user.user_metadata?.tenant
     });
 
     res.json({
@@ -124,6 +138,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
         id: data.user.id,
         email: data.user.email,
         role: data.user.user_metadata?.role || 'accountant',
+        tenant: data.user.user_metadata?.tenant,
         created_at: data.user.created_at
       }
     });
@@ -134,13 +149,14 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 });
 
 // Route to create the first admin user (no authentication required)
+// Admin users do not need to belong to a tenant; tenant is optional here.
 router.post('/create-admin', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password, confirmPassword }: RegisterCredentials = req.body;
+    const { email, password, confirmPassword, tenant } = req.body as Partial<RegisterCredentials>;
 
     // Validation
     if (!email || !password || !confirmPassword) {
-      res.status(400).json({ error: 'All fields are required' });
+      res.status(400).json({ error: 'All fields are required (email, password, confirmPassword)' });
       return;
     }
 
@@ -151,6 +167,14 @@ router.post('/create-admin', async (req: Request, res: Response): Promise<void> 
 
     if (password.length < 6) {
       res.status(400).json({ error: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    // Validate tenant if provided (tenant is optional for admin)
+    if (tenant && !Object.values(Tenant).includes(tenant)) {
+      res.status(400).json({ 
+        error: `Invalid tenant. Must be one of: ${Object.values(Tenant).join(', ')}` 
+      });
       return;
     }
 
@@ -170,14 +194,15 @@ router.post('/create-admin', async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Create admin user
+    // Create admin user (tenant omitted when not provided)
+    const metadata: any = { role: UserRole.ADMIN };
+    if (tenant) metadata.tenant = tenant;
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          role: UserRole.ADMIN
-        }
+        data: metadata
       }
     });
 
@@ -191,10 +216,12 @@ router.post('/create-admin', async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Generate JWT token
+    // Generate JWT token (tenant may be undefined/null)
     const token = generateToken({
       userId: data.user.id,
-      email: data.user.email!
+      email: data.user.email!,
+      role: UserRole.ADMIN,
+      tenant: tenant || undefined
     });
 
     res.status(201).json({
@@ -204,6 +231,7 @@ router.post('/create-admin', async (req: Request, res: Response): Promise<void> 
         id: data.user.id,
         email: data.user.email,
         role: UserRole.ADMIN,
+        tenant: tenant || null,
         created_at: data.user.created_at
       }
     });
@@ -260,6 +288,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response): Promis
         id: userData.user.id,
         email: userData.user.email,
         role: userData.user.user_metadata?.role || 'accountant',
+        tenant: userData.user.user_metadata?.tenant,
         created_at: userData.user.created_at,
         last_sign_in_at: userData.user.last_sign_in_at,
         email_confirmed_at: userData.user.email_confirmed_at
@@ -292,7 +321,8 @@ router.get('/admin-test', requireAdmin, async (req: Request, res: Response): Pro
     const adminInfo = {
       id: adminUser.id,
       email: adminUser.email,
-      role: 'admin',
+      role: adminUser.role || 'admin',
+      tenant: adminUser.tenant,
       access_level: 'full_system_access'
     };
 
