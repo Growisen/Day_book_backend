@@ -1,5 +1,7 @@
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAdmin } from '../config/supabase';
 import { DayBook } from '../models/pay_creation';
+import path from 'path';
+import crypto from 'crypto';
 
 export class DayBookService {
   private readonly TABLE_NAME = 'day_book';
@@ -13,7 +15,8 @@ export class DayBookService {
       delete sanitized.created_at;
       console.log('DayBookService.create payload (sanitized):', JSON.stringify(sanitized));
 
-      const { data: result, error } = await supabase
+      // Use admin client for inserts so row-level security does not block trusted server writes
+      const { data: result, error } = await supabaseAdmin
         .from(this.TABLE_NAME)
         .insert(sanitized)
         .select()
@@ -397,9 +400,21 @@ export class FileService {
 
   async uploadFile(file: Express.Multer.File, fileName: string) {
     try {
-      const { data, error } = await supabase.storage
+      // Sanitize filename and generate a safe key
+      // Preserve directory prefix if provided (e.g., receipts/filename.jpg)
+      const normalized = fileName.replace(/\\/g, '/');
+      const dir = normalized.includes('/') ? normalized.substring(0, normalized.lastIndexOf('/')) : '';
+      const originalBase = normalized.includes('/') ? normalized.substring(normalized.lastIndexOf('/') + 1) : normalized;
+      const ext = path.extname(originalBase) || '';
+      const nameWithoutExt = path.basename(originalBase, ext);
+      const safeName = nameWithoutExt.replace(/[^a-zA-Z0-9-_\.]/g, '').slice(0, 120) || crypto.randomBytes(4).toString('hex');
+      const random = crypto.randomBytes(4).toString('hex');
+      const safeKey = `${dir ? dir + '/' : ''}${Date.now()}-${random}-${safeName}${ext}`;
+
+      // Use admin client for storage operations to avoid permission/RLS issues for server uploads
+      const { data, error } = await supabaseAdmin.storage
         .from(this.BUCKET_NAME)
-        .upload(fileName, file.buffer, {
+        .upload(safeKey, file.buffer, {
           contentType: file.mimetype,
         });
 
@@ -407,10 +422,10 @@ export class FileService {
         throw new Error(`File upload failed: ${error.message}`);
       }
 
-      // Get public URL
-      const { data: publicData } = supabase.storage
+      // Get public URL using admin client
+      const { data: publicData } = supabaseAdmin.storage
         .from(this.BUCKET_NAME)
-        .getPublicUrl(fileName);
+        .getPublicUrl(safeKey);
 
       return publicData.publicUrl;
     } catch (error: any) {
@@ -420,7 +435,8 @@ export class FileService {
 
   async deleteFile(fileName: string) {
     try {
-      const { error } = await supabase.storage
+      // Use admin client for deletions as well
+      const { error } = await supabaseAdmin.storage
         .from(this.BUCKET_NAME)
         .remove([fileName]);
 
