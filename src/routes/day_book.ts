@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getUsers } from '../controllers/user.controller';
 import { authenticateToken } from '../middlewares/auth';
+import { supabaseAdmin } from '../config/supabase';
 import { dayBookService, fileService } from '../services/day_book_ops';
 import { DayBook, Tenant } from '../models/pay_creation';
 import { upload } from '../middlewares/fileupload';
@@ -177,6 +178,42 @@ router.get('/me', authenticateToken, (req: Request, res: Response) => {
     message: 'User info from JWT',
     user: (req as any).user // or use a custom type for req
   });
+});
+
+// Fetch all nurses from the 'nurses' table
+router.get('/nurses', async (req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('nurses')
+      .select('*')
+      .order('nurse_id', { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.status(200).json({ message: 'Nurses fetched', data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch nurses' });
+  }
+});
+
+// Fetch all clients from the 'clients' table
+router.get('/clients', async (req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('clients')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.status(200).json({ message: 'Clients fetched', data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch clients' });
+  }
 });
 
 router.get('/list', authenticateToken, async (req: Request, res: Response) => {
