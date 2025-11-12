@@ -28,6 +28,7 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
     const tenant = raw.tenant as Tenant | undefined;
     const nurse_id = typeof raw.nurse_id === 'string' ? raw.nurse_id : undefined;
     const client_id = typeof raw.client_id === 'string' ? raw.client_id : undefined;
+    const nurse_sal=raw.nurse_sal as string | undefined;
 
     // Validation for tenant - required field
     if (!tenant) {
@@ -62,6 +63,7 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
     }
     if (payment_type === 'outgoing' && nurse_id) {
       payload.nurse_id = nurse_id;
+      payload.nurse_sal = nurse_sal;
     }
 
     // Handle file upload if present
