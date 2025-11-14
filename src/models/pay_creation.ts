@@ -37,5 +37,6 @@ export interface DayBook {
   receipt?: string; // Added receipt field for storing file URL
   nurse_id?: string; // Optional field for outgoing payments only
   client_id?: string; // Optional field for incoming payments only
-  tenant: Tenant; // Required tenant field
+  tenant: Tenant;
+  nurse_sal?: number; // Required tenant field
 }
