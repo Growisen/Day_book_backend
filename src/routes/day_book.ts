@@ -28,7 +28,8 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
     const tenant = raw.tenant as Tenant | undefined;
     const nurse_id = typeof raw.nurse_id === 'string' ? raw.nurse_id : undefined;
     const client_id = typeof raw.client_id === 'string' ? raw.client_id : undefined;
-    const nurse_sal=raw.nurse_sal as string | undefined;
+    const nurse_sal=raw.nurse_sal as any
+    
 
     // Validation for tenant - required field
     if (!tenant) {
@@ -85,6 +86,20 @@ router.put('/update/:id', upload.single('receipt'), async (req: Request, res: Re
     const id = parseInt(req.params.id);
     const raw = req.body || {};
 
+    console.error('=== UPDATE DEBUG START ===');
+    console.error('Update ID:', id);
+    console.error('Request body:', raw);
+
+    // tenant-based filter (admins see all)
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
+    // fetch existing record so we can decide nurse_sal & previous values
+    const existing = await dayBookService.getById(id, tenantFilter);
+    if (!existing) {
+      return res.status(404).json({ error: 'Day book entry not found' });
+    }
+    console.log('Existing record before update:', existing);
+
     const updateData: Partial<DayBook> = {};
 
     // If amount provided, coerce and validate
@@ -96,13 +111,27 @@ router.put('/update/:id', upload.single('receipt'), async (req: Request, res: Re
       updateData.amount = amt;
     }
 
+    // basic fields
     if (raw.payment_type !== undefined) updateData.payment_type = raw.payment_type;
+    // day_book table uses pay_status column (not payment_status)
     if (raw.pay_status !== undefined) updateData.pay_status = raw.pay_status;
     if (raw.mode_of_pay !== undefined) updateData.mode_of_pay = raw.mode_of_pay;
     if (raw.description !== undefined) updateData.description = raw.description;
     if (raw.tenant !== undefined) updateData.tenant = raw.tenant;
     if (typeof raw.nurse_id === 'string') updateData.nurse_id = raw.nurse_id;
     if (typeof raw.client_id === 'string') updateData.client_id = raw.client_id;
+
+    // accept nurse_sal on update (string -> int)
+    if (raw.nurse_sal !== undefined) {
+      if (raw.nurse_sal === '') {
+        return res.status(400).json({ error: 'nurse_sal cannot be empty string' });
+      }
+      const ns = Number(raw.nurse_sal);
+      if (Number.isNaN(ns) || !Number.isFinite(ns) || !Number.isInteger(ns)) {
+        return res.status(400).json({ error: 'nurse_sal must be an integer when provided' });
+      }
+      updateData.nurse_sal = ns;
+    }
 
     // Validation for tenant if provided
     if (updateData.tenant && !Object.values(Tenant).includes(updateData.tenant)) {
@@ -119,9 +148,10 @@ router.put('/update/:id', upload.single('receipt'), async (req: Request, res: Re
       return res.status(400).json({ error: 'client_id cannot be empty string when provided' });
     }
 
-    // Remove nurse_id for incoming payments and client_id for outgoing payments
+    // Remove nurse_id and nurse_sal for incoming payments and client_id for outgoing payments
     if (updateData.payment_type === 'incoming') {
       delete updateData.nurse_id;
+      delete updateData.nurse_sal;
     } else if (updateData.payment_type === 'outgoing') {
       delete updateData.client_id;
     }
@@ -133,19 +163,71 @@ router.put('/update/:id', upload.single('receipt'), async (req: Request, res: Re
       updateData.receipt = fileUrl;
     }
 
+    console.log('Update payload being sent to DB:', updateData);
+
+    // perform the update on day_book
     const result = await dayBookService.update(id, updateData);
-    
+
     if (!result) {
-      return res.status(404).json({
-        error: 'Day book entry not found'
-      });
+      return res.status(404).json({ error: 'Day book entry not found' });
     }
+
+    console.log('Update result from DB:', result);
+
+    // Fetch fresh record from DB to read the stored nurse_sal and current pay_status.
+    const updatedRecord = await dayBookService.getById(id, tenantFilter);
+    console.log('Fresh record after update:', updatedRecord);
+
+    // If the DB row doesn't include nurse_sal column or the column is absent, do nothing.
+    if (updatedRecord && Object.prototype.hasOwnProperty.call(updatedRecord, 'nurse_sal')) {
+      const nurseSalId = (updatedRecord as any).nurse_sal as number | undefined;
+      // day_book uses pay_status column
+      const finalPayStatus = (updatedRecord as any).pay_status;
+
+      console.log('nurse_sal ID:', nurseSalId);
+      console.log('final pay_status:', finalPayStatus);
+
+      if (nurseSalId !== undefined && nurseSalId !== null && finalPayStatus === 'paid') {
+        console.log('Conditions met - updating salary_payments table for ID:', nurseSalId);
+        
+        const salaryUpdate: any = { payment_status: 'paid' };
+        // prefer receipt from the updated DB record
+        if ((updatedRecord as any).receipt) {
+          salaryUpdate.receipt_url = (updatedRecord as any).receipt;
+          console.log('Adding receipt_url:', salaryUpdate.receipt_url);
+        }
+
+        console.log('Salary update payload:', salaryUpdate);
+
+        const { data: salaryData, error: salaryErr } = await supabaseAdmin
+          .from('salary_payments')
+          .update(salaryUpdate)
+          .eq('id', nurseSalId)
+          .select();
+
+        if (salaryErr) {
+          console.error('Salary update error:', salaryErr);
+          return res.status(500).json({ error: `Failed to update salary_payments: ${salaryErr.message}` });
+        }
+
+        console.log('Salary_payments update successful:', salaryData);
+      } else {
+        console.log('Conditions NOT met for salary update:');
+        console.log('  - nurseSalId exists?', nurseSalId !== undefined && nurseSalId !== null);
+        console.log('  - finalPayStatus === "paid"?', finalPayStatus === 'paid');
+      }
+    } else {
+      console.log('nurse_sal column does not exist on updatedRecord or updatedRecord is null');
+    }
+
+    console.log('=== UPDATE DEBUG END ===');
 
     res.status(200).json({
       message: 'Day book entry updated successfully',
       data: result
     });
   } catch (error: any) {
+    console.error('Update error:', error);
     res.status(500).json({
       error: error.message || 'Failed to update day book entry'
     });
@@ -204,9 +286,9 @@ router.get('/nurses', async (req: Request, res: Response) => {
 router.get('/clients', async (req: Request, res: Response) => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('clients')
+      .from('individual_clients')
       .select('*')
-      .order('id', { ascending: true });
+      .order('client_id', { ascending: true });
 
     if (error) {
       return res.status(500).json({ error: error.message });
@@ -433,7 +515,7 @@ router.get('/nurse/:nurse_id', authenticateToken, async (req: Request, res: Resp
       error: error.message || 'Failed to fetch day book entries for nurse'
     });
   }
-});
+});  
 
 // Get all records from a specific client (incoming payments)
 router.get('/client/:client_id', authenticateToken, async (req: Request, res: Response) => {
