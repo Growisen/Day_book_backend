@@ -5,6 +5,7 @@ import compression from 'compression';
 import userRoutes from './routes/user.routes';
 import authRoutes from './routes/auth.routes';
 import testRoutes from './routes/test.routes';
+import personalRoutes from './routes/personal.routes';
 import errorHandler from './middlewares/errorHandler';
 import daybook_ops from './routes/day_book';
 
@@ -18,6 +19,7 @@ app.use('/api/test', testRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/daybook', daybook_ops);
+app.use('/api/personal', personalRoutes);
 
 app.use(errorHandler);
 
