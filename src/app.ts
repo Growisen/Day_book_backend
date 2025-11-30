@@ -8,6 +8,7 @@ import testRoutes from './routes/test.routes';
 import personalRoutes from './routes/personal.routes';
 import errorHandler from './middlewares/errorHandler';
 import daybook_ops from './routes/day_book';
+import bankingRoutes from './routes/banking';
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/daybook', daybook_ops);
 app.use('/api/personal', personalRoutes);
+app.use('/api/banking', bankingRoutes);
 
 app.use(errorHandler);
 

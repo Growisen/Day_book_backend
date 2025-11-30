@@ -3,7 +3,7 @@ import { getUsers } from '../controllers/user.controller';
 import { authenticateToken } from '../middlewares/auth';
 import { supabaseAdmin } from '../config/supabase';
 import { dayBookService, fileService } from '../services/day_book_ops';
-import { DayBook, Tenant } from '../models/pay_creation';
+import { DayBook, Tenant, PaymentTypeSpecific } from '../models/pay_creation';
 import { upload } from '../middlewares/fileupload';
 import * as XLSX from 'xlsx';
 
@@ -25,15 +25,22 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
     const pay_status = raw.pay_status as any;
     const mode_of_pay = raw.mode_of_pay as any;
     const description = raw.description as string | undefined;
+    const payment_description = raw.payment_description as string | undefined;
     const tenant = raw.tenant as Tenant | undefined;
     const nurse_id = typeof raw.nurse_id === 'string' ? raw.nurse_id : undefined;
     const client_id = typeof raw.client_id === 'string' ? raw.client_id : undefined;
     const nurse_sal=raw.nurse_sal as any
+    const payment_type_specific = raw.payment_type_specific as PaymentTypeSpecific | undefined;
     
 
     // Validation for tenant - required field
     if (!tenant) {
       return res.status(400).json({ error: 'tenant is required' });
+    }
+
+    // Validate payment_type_specific if provided
+    if (payment_type_specific !== undefined && !Object.values(PaymentTypeSpecific).includes(payment_type_specific)) {
+      return res.status(400).json({ error: `Invalid payment_type_specific. Must be one of: ${Object.values(PaymentTypeSpecific).join(', ')}` });
     }
 
     // Validate tenant enum
@@ -58,6 +65,9 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
       description,
       tenant
     };
+
+    if (payment_type_specific !== undefined) payload.payment_type_specific = payment_type_specific;
+    if (payment_description !== undefined) payload.payment_description = payment_description;
 
     if (payment_type === 'incoming' && client_id) {
       payload.client_id = client_id;
@@ -115,6 +125,8 @@ router.put('/update/:id', upload.single('receipt'), async (req: Request, res: Re
     if (raw.payment_type !== undefined) updateData.payment_type = raw.payment_type;
     // day_book table uses pay_status column (not payment_status)
     if (raw.pay_status !== undefined) updateData.pay_status = raw.pay_status;
+    if (raw.payment_type_specific !== undefined) updateData.payment_type_specific = raw.payment_type_specific;
+    if (raw.payment_description !== undefined) updateData.payment_description = raw.payment_description;
     if (raw.mode_of_pay !== undefined) updateData.mode_of_pay = raw.mode_of_pay;
     if (raw.description !== undefined) updateData.description = raw.description;
     if (raw.tenant !== undefined) updateData.tenant = raw.tenant;
@@ -136,6 +148,11 @@ router.put('/update/:id', upload.single('receipt'), async (req: Request, res: Re
     // Validation for tenant if provided
     if (updateData.tenant && !Object.values(Tenant).includes(updateData.tenant)) {
       return res.status(400).json({ error: `Invalid tenant. Must be one of: ${Object.values(Tenant).join(', ')}` });
+    }
+
+    // Validation for payment_type_specific if provided
+    if (updateData.payment_type_specific && !Object.values(PaymentTypeSpecific).includes(updateData.payment_type_specific)) {
+      return res.status(400).json({ error: `Invalid payment_type_specific. Must be one of: ${Object.values(PaymentTypeSpecific).join(', ')}` });
     }
 
     // Validation for nurse_id - only check if it's provided and not empty
@@ -366,10 +383,12 @@ router.get('/download/excel', authenticateToken, async (req: Request, res: Respo
       'ID': record.id,
       'Date': new Date(record.created_at).toLocaleDateString('en-IN'),
       'Payment Type': record.payment_type?.toUpperCase() || 'N/A',
+      'Payment Type Specific': record.payment_type_specific?.toUpperCase() || 'N/A',
       'Amount (₹)': record.amount || 0,
-      'Payment Status': record.payment_status?.toUpperCase() || 'N/A',
+      'Payment Status': record.pay_status?.toUpperCase() || 'N/A',
       'Mode of Payment': record.mode_of_pay?.toUpperCase() || 'N/A',
       'Description': record.description || 'N/A',
+      'Payment Description': record.payment_description || 'N/A',
       'Nurse ID': record.nurse_id || 'N/A',
       'Client ID': record.client_id || 'N/A',
       'Receipt': record.receipt ? 'Available' : 'Not Available',
@@ -386,10 +405,12 @@ router.get('/download/excel', authenticateToken, async (req: Request, res: Respo
       { wch: 8 },   // ID
       { wch: 12 },  // Date
       { wch: 15 },  // Payment Type
+      { wch: 20 },  // Payment Type Specific
       { wch: 12 },  // Amount
       { wch: 15 },  // Payment Status
       { wch: 18 },  // Mode of Payment
       { wch: 30 },  // Description
+      { wch: 30 },  // Payment Description
       { wch: 12 },  // Nurse ID
       { wch: 12 },  // Client ID
       { wch: 15 },  // Receipt
