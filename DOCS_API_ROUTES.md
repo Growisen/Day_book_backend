@@ -83,6 +83,12 @@ The project defines these enums in `src/models/pay_creation.ts`:
   - `upi`
   - `account_transfer`
 
+- PaymentTypeSpecific:
+  - `client_payment_received`
+  - `nurse_salary_paid`
+  - `office_expenses_paid`
+  - `student_fee_received`
+
 - Tenant:
   - `TATANursing`
   - `Dearcare`
@@ -185,6 +191,8 @@ Notes about tenant behavior:
   - pay_status: `paid` | `un_paid` (required)
   - mode_of_pay: `cash` | `upi` | `account_transfer` (optional)
   - description: string (optional)
+  - payment_type_specific: `client_payment_received` | `nurse_salary_paid` | `office_expenses_paid` | `student_fee_received` (optional)
+  - payment_description: string (optional) — detailed text description
   - tenant: one of Tenant (required in current create implementation; recommended to derive from token for non-admins)
   - nurse_id: string (optional) — only relevant to `outgoing` payments
   - client_id: string (optional) — only relevant to `incoming` payments
@@ -204,6 +212,8 @@ Notes about tenant behavior:
   "pay_status": "paid",
   "mode_of_pay": "account_transfer",
   "description": "General incoming payment",
+  "payment_type_specific": "client_payment_received",
+  "payment_description": "Payment received for services rendered",
   "tenant": "TATANursing",
   "client_id": "CLIENT123"
 }

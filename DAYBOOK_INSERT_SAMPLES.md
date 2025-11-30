@@ -19,6 +19,8 @@
   "pay_status": "paid",
   "description": "Monthly service payment from client",
   "mode_of_pay": "upi",
+  "payment_type_specific": "client_payment_received",
+  "payment_description": "Payment for home nursing services during November 2025",
   "client_id": "CLIENT_001",
   "tenant": "TATANursing"
 }
@@ -78,6 +80,22 @@ Payment method used.
 "mode_of_pay": "account_transfer" // Bank transfer
 ```
 
+#### `payment_type_specific` (string) - Optional
+Specific category of the payment.
+- **Options:** `"client_payment_received"` | `"nurse_salary_paid"` | `"office_expenses_paid"` | `"student_fee_received"`
+```json
+"payment_type_specific": "client_payment_received"  // Payment from client
+"payment_type_specific": "nurse_salary_paid"        // Nurse salary payment
+"payment_type_specific": "office_expenses_paid"     // Office expenses
+"payment_type_specific": "student_fee_received"     // Student fee
+```
+
+#### `payment_description` (string) - Optional
+Detailed text description of the payment.
+```json
+"payment_description": "Payment for home nursing services provided during November 2025"
+```
+
 #### `nurse_id` (string) - Optional
 Nurse identifier (only for outgoing payments).
 ```json
@@ -109,6 +127,8 @@ Receipt file upload (image/PDF).
   "pay_status": "paid",
   "description": "Home nursing service - November 2025",
   "mode_of_pay": "upi",
+  "payment_type_specific": "client_payment_received",
+  "payment_description": "Full payment for home nursing care services",
   "client_id": "CLIENT_SHARMA_001",
   "tenant": "TATANursing"
 }
@@ -122,6 +142,8 @@ Receipt file upload (image/PDF).
   "pay_status": "paid",
   "description": "Weekly salary for Nurse Priya",
   "mode_of_pay": "account_transfer",
+  "payment_type_specific": "nurse_salary_paid",
+  "payment_description": "Weekly salary payment for nursing services rendered",
   "nurse_id": "NURSE_PRIYA_123",
   "tenant": "Dearcare"
 }

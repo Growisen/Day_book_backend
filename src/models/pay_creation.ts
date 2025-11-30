@@ -14,6 +14,13 @@ export enum ModeOfPay {
   ACCOUNT_TRANSFER = 'account_transfer'
 }
 
+export enum PaymentTypeSpecific {
+  CLIENT_PAYMENT_RECEIVED = 'client_payment_received',
+  NURSE_SALARY_PAID = 'nurse_salary_paid',
+  OFFICE_EXPENSES_PAID = 'office_expenses_paid',
+  STUDENT_FEE_RECEIVED = 'student_fee_received'
+}
+
 export enum UserRole {
   ADMIN = 'admin',
   ACCOUNTANT = 'accountant',
@@ -35,6 +42,8 @@ export interface DayBook {
   description?: string;
   mode_of_pay?: ModeOfPay;
   receipt?: string; // Added receipt field for storing file URL
+  payment_type_specific?: PaymentTypeSpecific; // New specific payment type enum
+  payment_description?: string; // Additional detailed payment description (text)
   nurse_id?: string; // Optional field for outgoing payments only
   client_id?: string; // Optional field for incoming payments only
   tenant: Tenant;
