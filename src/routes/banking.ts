@@ -5,6 +5,15 @@ import { BankAccount, BankTransaction, BankTransactionType } from '../models/ban
 
 const router = Router();
 
+// Health check route (no authentication)
+router.get('/health', (req: Request, res: Response) => {
+  res.status(200).json({ 
+    message: 'Banking module is running!',
+    status: 'healthy',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ==================== BANK ACCOUNTS ====================
 
 // Create a new bank account
