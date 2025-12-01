@@ -30,7 +30,8 @@ export enum UserRole {
 export enum Tenant {
   TATA_NURSING = 'TATANursing',
   DEAR_CARE = 'Dearcare',
-  DEAR_CARE_ACADEMY = 'DearcareAcademy'
+  DEAR_CARE_ACADEMY = 'DearcareAcademy',
+  PERSONAL = 'Personal'
 }
 
 export interface DayBook {
