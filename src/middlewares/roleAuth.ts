@@ -31,7 +31,8 @@ export const requireRole = (allowedRoles: UserRole[], requiredTenant?: Tenant) =
         return res.status(403).json({ error: 'User role not found' });
       }
 
-      if (!userTenant) {
+      // Tenant is optional for admins, required for other roles
+      if (!userTenant && userRole !== UserRole.ADMIN) {
         return res.status(403).json({ error: 'User tenant not found' });
       }
 

@@ -62,6 +62,7 @@ router.post('/register', requireAdmin, async (req: Request, res: Response): Prom
     });
 
     if (error) {
+      console.log('Supabase signUp error:', error);
       res.status(400).json({ error: error.message });
       return;
     }
