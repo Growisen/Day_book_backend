@@ -407,4 +407,69 @@ router.get('/transactions/date-range', authenticateToken, async (req: Request, r
   }
 });
 
+// Update transaction
+router.put('/transactions/update/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const raw = req.body || {};
+
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
+    // Check if transaction exists
+    const existing = await bankTransactionService.getById(id, tenantFilter);
+    if (!existing) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    const updateData: Partial<BankTransaction> = {};
+
+    // Allow updating specific fields
+    if (raw.description !== undefined) updateData.description = raw.description;
+    if (raw.reference !== undefined) updateData.reference = raw.reference;
+    if (raw.cheque_number !== undefined) updateData.cheque_number = raw.cheque_number;
+    if (raw.status !== undefined) updateData.status = raw.status;
+
+    // Note: We don't allow updating amount, type, or account IDs as it would affect balances
+    // To modify those, delete and recreate the transaction
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const result = await bankTransactionService.update(id, updateData, tenantFilter);
+
+    res.status(200).json({
+      message: 'Transaction updated successfully',
+      data: result
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to update transaction' });
+  }
+});
+
+// Delete transaction
+router.delete('/transactions/delete/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const tenantFilter = (req as any).user?.role === 'admin' ? undefined : (req as any).user?.tenant;
+
+    // Check if transaction exists
+    const existing = await bankTransactionService.getById(id, tenantFilter);
+    if (!existing) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    // WARNING: This deletes the transaction record but does NOT reverse balance changes
+    // Consider implementing a reversal mechanism if needed
+    await bankTransactionService.delete(id, tenantFilter);
+
+    res.status(200).json({ 
+      message: 'Transaction deleted successfully',
+      warning: 'Note: This does not reverse the balance changes. Account balances remain as they were.'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to delete transaction' });
+  }
+});
+
 export default router;

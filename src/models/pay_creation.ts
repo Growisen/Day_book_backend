@@ -18,7 +18,8 @@ export enum PaymentTypeSpecific {
   CLIENT_PAYMENT_RECEIVED = 'client_payment_received',
   NURSE_SALARY_PAID = 'nurse_salary_paid',
   OFFICE_EXPENSES_PAID = 'office_expenses_paid',
-  STUDENT_FEE_RECEIVED = 'student_fee_received'
+  STUDENT_FEE_RECEIVED = 'student_fee_received',
+  COMMISSION = 'commission'
 }
 
 export enum UserRole {
@@ -49,4 +50,6 @@ export interface DayBook {
   client_id?: string; // Optional field for incoming payments only
   tenant: Tenant;
   nurse_sal?: number; // Required tenant field
+  custom_paid_date?: Date; // Optional custom payment date
+  created_by?: string; // Email of the user who created this entry
 }

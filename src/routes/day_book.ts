@@ -9,11 +9,12 @@ import * as XLSX from 'xlsx';
 
 const router = Router();
 
-router.post('/create', upload.single('receipt'), async (req: Request, res: Response) => {
+router.post('/create', authenticateToken, upload.single('receipt'), async (req: Request, res: Response) => {
   try {
     // Coerce and validate fields explicitly to avoid passing invalid types to DB
     const raw = req.body || {};
     console.log(raw)
+    console.log('User from token:', (req as any).user)
 
     // amount is required and must be a finite number
     const amount = raw.amount !== undefined ? Number(raw.amount) : NaN;
@@ -31,6 +32,7 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
     const client_id = typeof raw.client_id === 'string' ? raw.client_id : undefined;
     const nurse_sal=raw.nurse_sal as any
     const payment_type_specific = raw.payment_type_specific as PaymentTypeSpecific | undefined;
+    const custom_paid_date = raw.custom_paid_date ? new Date(raw.custom_paid_date) : undefined;
     
 
     // Validation for tenant - required field
@@ -63,11 +65,13 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
       pay_status,
       mode_of_pay,
       description,
-      tenant
+      tenant,
+      created_by: (req as any).user?.email // Add creator's email
     };
 
     if (payment_type_specific !== undefined) payload.payment_type_specific = payment_type_specific;
     if (payment_description !== undefined) payload.payment_description = payment_description;
+    if (custom_paid_date !== undefined) payload.custom_paid_date = custom_paid_date;
 
     if (payment_type === 'incoming' && client_id) {
       payload.client_id = client_id;
@@ -132,6 +136,7 @@ router.put('/update/:id', upload.single('receipt'), async (req: Request, res: Re
     if (raw.tenant !== undefined) updateData.tenant = raw.tenant;
     if (typeof raw.nurse_id === 'string') updateData.nurse_id = raw.nurse_id;
     if (typeof raw.client_id === 'string') updateData.client_id = raw.client_id;
+    if (raw.custom_paid_date !== undefined) updateData.custom_paid_date = raw.custom_paid_date ? new Date(raw.custom_paid_date) : undefined;
 
     // accept nurse_sal on update (string -> int)
     if (raw.nurse_sal !== undefined) {
