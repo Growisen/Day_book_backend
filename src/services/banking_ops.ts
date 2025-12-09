@@ -371,6 +371,54 @@ export class BankTransactionService {
     }
     return data;
   }
+
+  // Update transaction
+  async update(id: number, data: Partial<BankTransaction>, tenant?: string) {
+    try {
+      // Get existing transaction to check tenant access
+      const existing = await this.getById(id, tenant);
+      if (!existing) {
+        throw new Error('Transaction not found');
+      }
+
+      const { data: result, error } = await supabaseAdmin
+        .from(this.TABLE_NAME)
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to update transaction: ${error.message}`);
+      }
+      return result;
+    } catch (err: any) {
+      throw err;
+    }
+  }
+
+  // Delete transaction (NOTE: This does NOT reverse the balance changes)
+  async delete(id: number, tenant?: string) {
+    try {
+      // Get existing transaction to check tenant access
+      const existing = await this.getById(id, tenant);
+      if (!existing) {
+        throw new Error('Transaction not found');
+      }
+
+      const { error } = await supabaseAdmin
+        .from(this.TABLE_NAME)
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw new Error(`Failed to delete transaction: ${error.message}`);
+      }
+      return true;
+    } catch (err: any) {
+      throw err;
+    }
+  }
 }
 
 export const bankAccountService = new BankAccountService();
