@@ -32,6 +32,7 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
     const nurse_sal=raw.nurse_sal as any
     const payment_type_specific = raw.payment_type_specific as PaymentTypeSpecific | undefined;
     const custom_paid_date = raw.custom_paid_date ? new Date(raw.custom_paid_date) : undefined;
+    const created_by = raw.created_by as string | undefined;
     
 
     // Validation for tenant - required field
@@ -64,13 +65,13 @@ router.post('/create', upload.single('receipt'), async (req: Request, res: Respo
       pay_status,
       mode_of_pay,
       description,
-      tenant,
-      created_by: (req as any).user?.email // Add creator's email
+      tenant
     };
 
     if (payment_type_specific !== undefined) payload.payment_type_specific = payment_type_specific;
     if (payment_description !== undefined) payload.payment_description = payment_description;
     if (custom_paid_date !== undefined) payload.custom_paid_date = custom_paid_date;
+    if (created_by !== undefined) payload.created_by = created_by;
 
     if (payment_type === 'incoming' && client_id) {
       payload.client_id = client_id;
