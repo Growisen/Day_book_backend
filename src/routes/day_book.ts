@@ -9,12 +9,11 @@ import * as XLSX from 'xlsx';
 
 const router = Router();
 
-router.post('/create', authenticateToken, upload.single('receipt'), async (req: Request, res: Response) => {
+router.post('/create', upload.single('receipt'), async (req: Request, res: Response) => {
   try {
     // Coerce and validate fields explicitly to avoid passing invalid types to DB
     const raw = req.body || {};
     console.log(raw)
-    console.log('User from token:', (req as any).user)
 
     // amount is required and must be a finite number
     const amount = raw.amount !== undefined ? Number(raw.amount) : NaN;
